@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>partdi</title>
+  <style>
+
+  </style>
+</head>
+<body>
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MiniGames Online</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090c12;color:white;font-family:Arial;overflow-x:hidden}
+button,input{font:inherit}
+button{width:100%;padding:16px;border:0;border-radius:11px;background:#e43e4c;color:white;font-weight:bold;margin-top:10px}
+button:disabled{opacity:.35}
+input{width:100%;padding:14px;background:#111925;color:white;border:1px solid #394657;border-radius:9px;margin:8px 0}
+.hidden{display:none!important}
+.container{max-width:480px;margin:auto;padding:20px}
+.logo{text-align:center;font-size:30px;font-weight:900;margin:35px 0 5px}
+.logo span{color:#ed4655}
+.subtitle{text-align:center;color:#8994a5;margin-bottom:25px}
+.panel{background:#151d29;border:1px solid #2b3748;border-radius:14px;padding:18px;margin:14px 0}
+h3{margin:0 0 12px}
+.secondary{background:#293648}
+#status{text-align:center;color:#aab4c3;font-size:13px;margin:15px}
+#roomCode{text-align:center;font-size:36px;font-weight:900;letter-spacing:7px;color:#ff5664;padding:12px}
+.player{background:#222e3d;padding:13px;border-radius:9px;margin:7px 0;display:flex;justify-content:space-between}
+.host{color:#ff6874;font-size:12px}
+#message{text-align:center;color:#aab4c3;margin:12px 0}
+.start{
+ background:linear-gradient(135deg,#e94351,#a91f37);
+ padding:19px;
+ font-size:17px;
+ letter-spacing:1px;
+ box-shadow:0 5px 20px #e43e4c44;
+}
+#game{position:fixed;inset:0;background:#101722}
+#renderCanvas{width:100%;height:100%;touch-action:none;display:block}
+#hud{position:absolute;inset:0;pointer-events:none}
+#joystick{position:absolute;bottom:25px;left:25px;width:125px;height:125px;border-radius:50%;background:#ffffff25;border:2px solid #ffffff66;pointer-events:auto;touch-action:none}
+#stick{position:absolute;left:36px;top:36px;width:48px;height:48px;border-radius:50%;background:#ffffffaa}
+#exit{position:absolute;right:12px;top:12px;width:auto;pointer-events:auto;padding:12px 20px}
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+#online{position:absolute;top:15px;left:15px;background:#0009;padding:10px;border-radius:8px;font-size:13px}
+</style>
+</head>
+
+<body>
+
+<div class="container" id="menu">
+ <div class="logo">MINI<span>GAMES</span></div>
+ <div class="subtitle">MULTIPLAYER ARENA</div>
+
+ <div class="panel">
+  <h3>Oyuncu adı</h3>
+  <input id="playerName" maxlength="16" placeholder="İsmini yaz">
+ </div>
+
+ <div id="mainButtons">
+  <div class="panel">
+   <h3>Oda oluştur</h3>
+   <button onclick="createRoom()">ODA OLUŞTUR</button>
+  </div>
+
+  <div class="panel">
+   <h3>Odaya katıl</h3>
+   <input id="roomInput" maxlength="6" placeholder="Oda kodu">
+   <button class="secondary" onclick="joinRoom()">ODAYA KATIL</button>
+  </div>
+ </div>
+
+ <div id="lobby" class="hidden">
+  <div class="panel">
+   <h3 style="text-align:center">ODA KODU</h3>
+   <div id="roomCode">------</div>
+   <div style="text-align:center;color:#9ba7b8">Arkadaşlarınla paylaş</div>
+  </div>
+
+  <div class="panel">
+   <h3>Oyuncular</h3>
+   <div id="players">Oyuncular yükleniyor...</div>
+   <div id="playerCount" style="text-align:center;color:#9ba7b8"></div>
+  </div>
+
+  <div id="message"></div>
+
+  <button class="start" id="startButton" onclick="startGame()" disabled>
+   OYUNU BAŞLAT
+  </button>
+
+  <div class="status" id="startHint" style="text-align:center;color:#9ba7b8;font-size:12px;margin-top:10px">
+   Başlatmak için 4 oyuncu gerekli
+  </div>
+
+  <button class="secondary" onclick="leaveRoom()">ODADAN AYRIL</button>
+ </div>
+
+ <div id="status">Bağlantı kuruluyor...</div>
+</div>
+
+<div id="game" class="hidden">
+ <canvas id="renderCanvas"></canvas>
+ <div id="hud">
+  <div id="online">Oyuncular: 1</div>
+  <button id="exit" onclick="leaveRoom()">ÇIK</button>
+  <div id="crosshair">+</div>
+  <div id="joystick"><div id="stick"></div></div>
+ </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+
+<script>
+const firebaseConfig={
+ apiKey:"AIzaSyBUyRtUc_RewA55k6vyAybXOqfMlwkcHxI",
+ authDomain:"minigamesonline-21a7d.firebaseapp.com",
+ databaseURL:"https://minigamesonline-21a7d-default-rtdb.firebaseio.com",
+ projectId:"minigamesonline-21a7d",
+ storageBucket:"minigamesonline-21a7d.firebasestorage.app",
+ messagingSenderId:"141260106750",
+ appId:"1:141260106750:web:49a7528705b15de598aeaf",
+ measurementId:"G-EQFWR6KL4Y"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+const $=id=>document.getElementById(id);
+
+const playerId=sessionStorage.playerId||
+"p_"+Math.random().toString(36).slice(2,12);
+sessionStorage.playerId=playerId;
+
+let currentRoom=null;
+let isHost=false;
+let roomRef=null;
+let roomCallback=null;
+let engine=null,scene=null,camera=null;
+let avatars={};
+let gameRunning=false;
+let myX=0,myZ=0,myYaw=0;
+let joyX=0,joyY=0,lastSend=0;
+let lookId=null,lastX=0,lastY=0;
+
+function playerName(){
+ return $("playerName").value.trim().slice(0,16);
+}
+function randomCode(){
+ return Math.random().toString(36).substring(2,8).toUpperCase();
+}
+function status(t){$("status").textContent=t}
+
+function showLobby(){
+ $("mainButtons").classList.add("hidden");
+ $("lobby").classList.remove("hidden");
+ $("roomCode").textContent=currentRoom;
+ $("players").textContent="Oyuncular yükleniyor...";
+}
+
+async function createRoom(){
+ if(!playerName())return alert("Önce ismini yaz!");
+ status("Oda oluşturuluyor...");
+
+ try{
+  let code,created=false;
+
+  for(let i=0;i<10;i++){
+   code=randomCode();
+
+   const result=await db.ref("rooms/"+code).transaction(old=>{
+    if(old!==null)return;
+    return {
+     host:playerId,
+     status:"waiting",
+     players:{
+      [playerId]:{
+       name:playerName(),
+       position:{x:0,z:0,yaw:0}
+      }
+     }
+    };
+   });
+
+   if(result.committed){created=true;break;}
+  }
+
+  if(!created)throw Error("Oda oluşturulamadı.");
+
+  currentRoom=code;
+  isHost=true;
+  showLobby();
+  listenRoom();
+
+ }catch(e){
+  status("Hata: "+e.message);
+  alert(e.message);
+ }
+}
+
+async function joinRoom(){
+ if(!playerName())return alert("Önce ismini yaz!");
+
+ const code=$("roomInput").value.trim().toUpperCase();
+ if(code.length!==6)return alert("6 karakterli oda kodu gir.");
+
+ status("Odaya bağlanılıyor...");
+
+ try{
+  const result=await db.ref("rooms/"+code).transaction(room=>{
+   if(!room||room.status!=="waiting")return;
+   room.players=room.players||{};
+   if(!room.players[playerId]&&Object.keys(room.players).length>=8)return;
+   room.players[playerId]={
+    name:playerName(),
+    position:{x:0,z:0,yaw:0}
+   };
+   return room;
+  });
+
+  if(!result.committed)throw Error("Oda bulunamadı veya dolu.");
+
+  currentRoom=code;
+  isHost=false;
+  showLobby();
+  listenRoom();
+
+ }catch(e){
+  status("Hata: "+e.message);
+  alert(e.message);
+ }
+}
+
+function listenRoom(){
+ if(roomRef&&roomCallback)roomRef.off("value",roomCallback);
+
+ roomRef=db.ref("rooms/"+currentRoom);
+
+ roomCallback=snapshot=>{
+  const room=snapshot.val();
+
+  if(!room){
+   $("players").textContent="Oda bulunamadı.";
+   return;
+  }
+
+  const players=room.players||{};
+  const ids=Object.keys(players);
+
+  $("players").innerHTML="";
+
+  ids.forEach(id=>{
+   const div=document.createElement("div");
+   div.className="player";
+
+   const name=document.createElement("span");
+   name.textContent=players[id].name;
+
+   const host=document.createElement("span");
+   host.className="host";
+   host.textContent=id===room.host?"HOST":"";
+
+   div.appendChild(name);
+   div.appendChild(host);
+   $("players").appendChild(div);
+  });
+
+  $("playerCount").textContent=ids.length+" / 8 oyuncu";
+
+  const canStart=room.host===playerId&&
+   ids.length>=4&&ids.length<=8&&
+   room.status==="waiting";
+
+  $("startButton").disabled=!canStart;
+
+  $("startHint").textContent=
+   room.host!==playerId
+   ?"Yalnızca oda sahibi başlatabilir."
+   :ids.length<4
+   ?"Başlatmak için "+(4-ids.length)+" oyuncu daha gerekli."
+   :"Oyuncular hazır! Başlatabilirsin.";
+
+  $("message").textContent=
+   room.status==="playing"?"3D alana geçiliyor...":"Oda hazır.";
+
+  if(room.status==="playing"&&!gameRunning)enterGame(players);
+  if(gameRunning)updateRemote(players);
+ };
+
+ roomRef.on("value",roomCallback,error=>{
+  status("Firebase hatası: "+error.message);
+ });
+ status("Lobiye bağlandın!");
+}
+
+async function startGame(){
+ if(!currentRoom||!isHost)return;
+
+ const result=await db.ref("rooms/"+currentRoom).transaction(room=>{
+  if(!room||room.host!==playerId||room.status!=="waiting")return;
+  const count=Object.keys(room.players||{}).length;
+  if(count<4||count>8)return;
+  room.status="playing";
+  return room;
+ });
+
+ if(!result.committed)alert("Oyun başlatılamadı. En az 4 oyuncu gerekli.");
+}
+
+// LOW POLY 3D
+
+function material(name,color){
+ const m=new BABYLON.StandardMaterial(name,scene);
+ m.diffuseColor=BABYLON.Color3.FromHexString(color);
+ return m;
+}
+
+function createAvatar(id,name){
+ const root=new BABYLON.TransformNode("avatar"+id,scene);
+ const colors=["#d94a53","#478bd1","#4caa78","#d5a044","#9872c9"];
+ let hash=0;
+ for(let i=0;i<id.length;i++)hash+=id.charCodeAt(i);
+ const bodyMat=material("body"+id,colors[hash%colors.length]);
+ const skin=material("skin"+id,"#d8aa88");
+ const dark=material("dark"+id,"#303b49");
+
+ function part(w,h,d,x,y,z,mat){
+  const m=BABYLON.MeshBuilder.CreateBox("part",{width:w,height:h,depth:d},scene);
+  m.position.set(x,y,z);
+  m.material=mat;
+  m.parent=root;
+  return m;
+ }
+
+ part(.5,.65,.3,0,1.05,0,bodyMat);
+
+ const head=BABYLON.MeshBuilder.CreateSphere("head",{diameter:.36,segments:6},scene);
+ head.position.y=1.58;
+ head.material=skin;
+ head.parent=root;
+
+ part(.17,.58,.2,-.14,.42,0,dark);
+ part(.17,.58,.2,.14,.42,0,dark);
+ part(.15,.58,.18,-.34,1.05,0,bodyMat);
+ part(.15,.58,.18,.34,1.05,0,bodyMat);
+
+ const plane=BABYLON.MeshBuilder.CreatePlane("name",{width:1.5,height:.35},scene);
+ plane.position.y=2.05;
+ plane.parent=root;
+ plane.billboardMode=BABYLON.Mesh.BILLBOARDMODE_ALL;
+
+ const tex=new BABYLON.DynamicTexture("nameTex"+id,{width:512,height:128},scene);
+ tex.drawText(name,10,90,"bold 58px Arial","white","transparent",true);
+
+ const mat=new BABYLON.StandardMaterial("nameMat"+id,scene);
+ mat.diffuseTexture=tex;
+ mat.emissiveColor=new BABYLON.Color3(1,1,1);
+ mat.disableLighting=true;
+ mat.useAlphaFromDiffuseTexture=true;
+ plane.material=mat;
+
+ return root;
+}
+
+function updateRemote(players){
+ const ids=Object.keys(players||{});
+ $("online").textContent="Oyuncular: "+ids.length;
+
+ ids.forEach(id=>{
+  if(id===playerId)return;
+  const p=players[id];
+  if(!p.position)return;
+
+  if(!avatars[id])avatars[id]=createAvatar(id,p.name||"Oyuncu");
+
+  avatars[id].position.x=p.position.x||0;
+  avatars[id].position.z=p.position.z||0;
+  avatars[id].rotation.y=p.position.yaw||0;
+ });
+
+ Object.keys(avatars).forEach(id=>{
+  if(!players[id]){
+   avatars[id].dispose();
+   delete avatars[id];
+  }
+ });
+}
+
+function enterGame(players){
+ if(gameRunning)return;
+ gameRunning=true;
+
+ $("menu").classList.add("hidden");
+ $("game").classList.remove("hidden");
+
+ const canvas=$("renderCanvas");
+ engine=new BABYLON.Engine(canvas,true);
+ scene=new BABYLON.Scene(engine);
+ scene.clearColor=new BABYLON.Color4(.05,.07,.1,1);
+
+ camera=new BABYLON.UniversalCamera("camera",new BABYLON.Vector3(0,1.65,0),scene);
+ camera.minZ=.1;
+ camera.fov=1.1;
+ scene.activeCamera=camera;
+
+ const light=new BABYLON.HemisphericLight("light",new BABYLON.Vector3(0,1,0),scene);
+ light.intensity=.9;
+
+ const ground=BABYLON.MeshBuilder.CreateGround("ground",{width:60,height:60},scene);
+ ground.material=material("floor","#454f5e");
+
+ const wallMat=material("walls","#273445");
+
+ function wall(x,y,z,w,h,d){
+  const m=BABYLON.MeshBuilder.CreateBox("wall",{width:w,height:h,depth:d},scene);
+  m.position.set(x,y,z);
+  m.material=wallMat;
+ }
+
+ wall(0,2,30,60,4,1);
+ wall(0,2,-30,60,4,1);
+ wall(30,2,0,1,4,60);
+ wall(-30,2,0,1,4,60);
+
+ camera.position.set(myX,1.65,myZ);
+ camera.rotation.y=myYaw;
+
+ updateRemote(players);
+ setupControls();
+
+ engine.runRenderLoop(()=>{
+  if(!gameRunning)return;
+
+  const dt=Math.min(engine.getDeltaTime()/1000,.05);
+
+  let f=-joyY,s=joyX;
+  const len=Math.hypot(f,s);
+  if(len>1){f/=len;s/=len;}
+
+  const speed=5;
+  myX=Math.max(-28,Math.min(28,myX+(Math.sin(myYaw)*f+Math.cos(myYaw)*s)*speed*dt));
+  myZ=Math.max(-28,Math.min(28,myZ+(Math.cos(myYaw)*f-Math.sin(myYaw)*s)*speed*dt));
+
+  camera.position.x=myX;
+  camera.position.z=myZ;
+
+  if(Date.now()-lastSend>150){
+   lastSend=Date.now();
+   db.ref("rooms/"+currentRoom+"/players/"+playerId+"/position")
+   .update({x:myX,z:myZ,yaw:myYaw}).catch(()=>{});
+  }
+
+  scene.render();
+ });
+
+ window.addEventListener("resize",()=>engine&&engine.resize());
+}
+
+function setupControls(){
+ const base=$("joystick"),stick=$("stick");
+
+ function move(e){
+  const r=base.getBoundingClientRect();
+  let x=e.clientX-r.left-r.width/2;
+  let y=e.clientY-r.top-r.height/2;
+  const len=Math.hypot(x,y),max=38;
+  if(len>max){x=x/len*max;y=y/len*max;}
+  joyX=x/max;
+  joyY=y/max;
+  stick.style.left=36+x+"px";
+  stick.style.top=36+y+"px";
+ }
+
+ function reset(){
+  joyX=joyY=0;
+  stick.style.left="36px";
+  stick.style.top="36px";
+ }
+
+ base.addEventListener("pointerdown",e=>{
+  base.setPointerCapture(e.pointerId);
+  move(e);
+ });
+ base.addEventListener("pointermove",e=>{
+  if(e.buttons)move(e);
+ });
+ base.addEventListener("pointerup",reset);
+ base.addEventListener("pointercancel",reset);
+
+ const canvas=$("renderCanvas");
+
+ canvas.addEventListener("pointerdown",e=>{
+  if(e.clientX<innerWidth*.4)return;
+  lookId=e.pointerId;
+  lastX=e.clientX;
+  lastY=e.clientY;
+ });
+
+ canvas.addEventListener("pointermove",e=>{
+  if(e.pointerId!==lookId)return;
+  const dx=e.clientX-lastX,dy=e.clientY-lastY;
+  lastX=e.clientX;
+  lastY=e.clientY;
+  myYaw+=dx*.006;
+  camera.rotation.y=myYaw;
+  camera.rotation.x=Math.max(-1.3,Math.min(1.3,camera.rotation.x+dy*.006));
+ });
+
+ function end(e){if(e.pointerId===lookId)lookId=null;}
+ canvas.addEventListener("pointerup",end);
+ canvas.addEventListener("pointercancel",end);
+}
+
+async function leaveRoom(){
+ if(!currentRoom)return;
+
+ const code=currentRoom;
+
+ if(roomRef&&roomCallback)roomRef.off("value",roomCallback);
+
+ if(engine){
+  engine.stopRenderLoop();
+  engine.dispose();
+  engine=null;
+ }
+
+ gameRunning=false;
+ Object.values(avatars).forEach(a=>a.dispose());
+ avatars={};
+
+ currentRoom=null;
+ isHost=false;
+
+ await db.ref("rooms/"+code+"/players/"+playerId).remove();
+
+ const snap=await db.ref("rooms/"+code+"/players").once("value");
+ if(!snap.exists())await db.ref("rooms/"+code).remove();
+
+ $("game").classList.add("hidden");
+ $("menu").classList.remove("hidden");
+ $("lobby").classList.add("hidden");
+ $("mainButtons").classList.remove("hidden");
+ status("Odadan ayrıldın");
+}
+</script>
+</body>
+</html>
+
+  <script>
+
+  </script>
+</body>
+</html>
